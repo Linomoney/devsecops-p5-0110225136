@@ -1,6 +1,6 @@
 # TaskTracker - DevSecOps Pipeline (Praktikum 5)
 
-![DevSecOps Pipeline](https://github.com/USERNAME/devsecops-p5-NIM/actions/workflows/devsecops.yml/badge.svg)
+![DevSecOps Pipeline](https://github.com/Linomoney/devsecops-p5-0110225136/actions/workflows/devsecops.yml/badge.svg)
 
 ## 1. Nama Aplikasi & Fungsinya
 **TaskTracker** adalah REST API sederhana untuk mengelola daftar tugas (to-do list).
@@ -37,7 +37,7 @@ run.py              # entry point
 
 ## 3. Cara Menjalankan Aplikasi
 ```bash
-git clone https://github.com/USERNAME/devsecops-p5-NIM.git
+git clone https://github.com/Linomoney/devsecops-p5-0110225136.git
 cd devsecops-p5-NIM
 
 python -m venv .venv
