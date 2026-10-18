@@ -1,0 +1,122 @@
+name: devsecops-p5-0110225136
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # JOB 1: Build & Unit Test
+  # ─────────────────────────────────────────────────────────────
+  build:
+    name: Build & Unit Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Unit Tests with Coverage
+        run: |
+          pytest tests/ -v \
+            --cov=app \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing \
+            --cov-fail-under=70
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 2: SAST Scan (Bandit) — Quality Gate
+  # ─────────────────────────────────────────────────────────────
+  sast-scan:
+    name: SAST Security Scan (Bandit)
+    runs-on: ubuntu-latest
+    needs: build                   # Hanya berjalan setelah job build sukses
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Bandit SAST Tool
+        run: pip install bandit
+
+      - name: Run Bandit SAST Scan
+        run: |
+          bandit -r app/ \
+            -f json \
+            -o bandit-report.json \
+            --severity-level medium \
+            --confidence-level medium \
+            -x tests/ \
+            || true           # Jangan langsung gagal; biarkan Quality Gate yang memutuskan
+
+      - name: Display Bandit Summary
+        run: |
+          bandit -r app/ \
+            --severity-level medium \
+            --confidence-level medium \
+            -x tests/ \
+            -f txt || true
+
+      - name: Upload Bandit Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
+          retention-days: 7
+
+      - name: Quality Gate — Enforce No High-Severity Issues
+        run: |
+          python - <<'EOF'
+          import json, sys
+
+          try:
+              with open("bandit-report.json") as f:
+                  report = json.load(f)
+          except (FileNotFoundError, json.JSONDecodeError) as e:
+              print(f"[ERROR] Tidak dapat membaca bandit-report.json: {e}")
+              sys.exit(1)
+
+          results = report.get("results", [])
+          high_issues = [
+              r for r in results
+              if r.get("issue_severity", "").upper() == "HIGH"
+          ]
+
+          print(f"Total temuan SAST    : {len(results)}")
+          print(f"Temuan HIGH severity : {len(high_issues)}")
+
+          if high_issues:
+              print("\n[QUALITY GATE FAILED] Ditemukan isu keamanan HIGH severity:")
+              for issue in high_issues:
+                  print(f"  - [{issue['test_id']}] {issue['issue_text']}")
+                  print(f"    File : {issue['filename']}:{issue['line_number']}")
+              sys.exit(1)
+          else:
+              print("\n[QUALITY GATE PASSED] Tidak ada isu HIGH severity ditemukan.")
+          EOF
